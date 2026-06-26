@@ -12,7 +12,7 @@ setup(
     ],
     entry_points={
         'console_scripts': [
-            'network-scanner=scanner:cli',
+            'network-scanner=scanner.cli:cli',
         ],
     },
 )

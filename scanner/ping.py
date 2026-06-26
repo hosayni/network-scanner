@@ -18,12 +18,42 @@ except Exception:  # pragma: no cover
     sr1 = None
 
 
-@click.command()
-@click.argument("network")
+@click.command(name="ping")
+@click.argument("network", required=False)
+@click.option("--subnet", type=str, help="Subnet to sweep in CIDR notation")
 @click.option("-t", "--timeout", default=1.0, help="ICMP timeout in seconds")
 @click.option("-o", "--output", type=click.Choice(["json", "csv", "none"]), default="none")
-def ping(network: str, timeout: float, output: str):
-    """ICMP ping sweep of a network (CIDR)"""
+def ping(network: str | None, subnet: str | None, timeout: float, output: str):
+    """ICMP ping sweep of a network or subnet."""
+    from scanner.scanner import ping_sweep
+
+    if subnet:
+        try:
+            results = ping_sweep(subnet, timeout=timeout)
+        except PermissionError as exc:
+            console.print(f"[bold red]Permission error:[/bold red] {exc}")
+            raise click.Abort() from exc
+        except ValueError as exc:
+            console.print(f"[bold red]{exc}[/bold red]")
+            raise click.Abort() from exc
+
+        table = Table(title=f"ICMP sweep results for {subnet}")
+        table.add_column("IP", style="cyan")
+        table.add_column("Status", style="magenta")
+        table.add_column("Response time (ms)", justify="right")
+        for entry in results:
+            status = entry["status"]
+            response = entry["response_time_ms"]
+            if status == "alive":
+                table.add_row(entry["ip"], "[green]alive[/green]", str(response) if response is not None else "n/a")
+            else:
+                table.add_row(entry["ip"], "[red]down[/red]", "-" if response is None else str(response))
+        console.print(table)
+        return
+
+    if not network:
+        raise click.UsageError("Provide a network argument or use --subnet")
+
     try:
         net = ipaddress.ip_network(network, strict=False)
     except Exception as e:
